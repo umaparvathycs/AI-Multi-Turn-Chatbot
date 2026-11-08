@@ -1,13 +1,19 @@
 
+const API_URL = "https://ai-multi-turn-chatbot.onrender.com";
+
+// Get HTML elements
 const chatBox = document.getElementById("chat-box");
 const userInput = document.getElementById("user-input");
 const sendBtn = document.getElementById("send-btn");
 const newChatBtn = document.getElementById("new-chat");
 const chatHistory = document.getElementById("chat-history");
 
+// Current conversation
 let conversationId = null;
+let isSending = false;
 
-// Display messages
+
+// Display a message
 function displayMessage(message, sender) {
     const messageDiv = document.createElement("div");
 
@@ -18,31 +24,34 @@ function displayMessage(message, sender) {
     chatBox.scrollTop = chatBox.scrollHeight;
 }
 
-// Typing indicator
-function showTypingIndicator() {
-    removeTypingIndicator();
 
+// Show typing indicator
+function showTypingIndicator() {
     const typingDiv = document.createElement("div");
 
-    typingDiv.classList.add("message", "bot");
     typingDiv.id = "typing-indicator";
+    typingDiv.classList.add("message", "bot");
     typingDiv.textContent = "AI is typing...";
 
     chatBox.appendChild(typingDiv);
     chatBox.scrollTop = chatBox.scrollHeight;
 }
 
-function removeTypingIndicator() {
-    const indicator = document.getElementById("typing-indicator");
 
-    if (indicator) {
-        indicator.remove();
+// Remove typing indicator
+function removeTypingIndicator() {
+    const typingDiv = document.getElementById("typing-indicator");
+
+    if (typingDiv) {
+        typingDiv.remove();
     }
 }
+
 
 // Start a new chat
 function startNewChat() {
     conversationId = null;
+
     chatBox.innerHTML = "";
 
     displayMessage(
@@ -50,134 +59,71 @@ function startNewChat() {
         "bot"
     );
 
+    userInput.value = "";
     userInput.focus();
 }
 
-// Load chat history
+
+// Load all conversations
 async function loadChatHistory() {
     try {
         const response = await fetch(
-            "http://127.0.0.1:8000/conversations"
+            `${API_URL}/conversations`
         );
 
         if (!response.ok) {
-            throw new Error("Could not load chat history");
+            throw new Error("Could not load chat history.");
         }
 
         const conversations = await response.json();
 
         chatHistory.innerHTML = "";
 
-        conversations.forEach(conversation => {
-            const item = document.createElement("div");
-            item.classList.add("history-item");
+        conversations.forEach((conversation) => {
+            const historyItem = document.createElement("div");
+            historyItem.classList.add("history-item");
 
+            // Conversation title
             const title = document.createElement("span");
             title.classList.add("history-title");
             title.textContent = conversation.title || "New Chat";
 
-            // Open conversation when title is clicked
             title.addEventListener("click", () => {
                 openConversation(conversation.conversation_id);
             });
 
             // Rename button
             const renameBtn = document.createElement("button");
-            renameBtn.textContent = "Rename";
             renameBtn.classList.add("history-action");
+            renameBtn.textContent = "Rename";
 
-            renameBtn.addEventListener("click", async (event) => {
+            renameBtn.addEventListener("click", (event) => {
                 event.stopPropagation();
 
-                const newTitle = prompt(
-                    "Enter a new conversation title:",
+                renameConversation(
+                    conversation.conversation_id,
                     conversation.title
                 );
-
-                if (newTitle === null) return;
-
-                if (!newTitle.trim()) {
-                    alert("Title cannot be empty.");
-                    return;
-                }
-
-                try {
-                    const renameResponse = await fetch(
-                        `http://127.0.0.1:8000/conversations/${conversation.conversation_id}`,
-                        {
-                            method: "PUT",
-                            headers: {
-                                "Content-Type": "application/json"
-                            },
-                            body: JSON.stringify({
-                                title: newTitle.trim()
-                            })
-                        }
-                    );
-
-                    if (!renameResponse.ok) {
-                        throw new Error("Rename failed");
-                    }
-
-                    await loadChatHistory();
-                    alert("Conversation renamed successfully!");
-
-                } catch (error) {
-                    console.error(error);
-                    alert("Could not rename conversation.");
-                }
             });
 
             // Delete button
             const deleteBtn = document.createElement("button");
-            deleteBtn.textContent = "Delete";
             deleteBtn.classList.add("history-action", "delete-btn");
+            deleteBtn.textContent = "Delete";
 
-            deleteBtn.addEventListener("click", async (event) => {
+            deleteBtn.addEventListener("click", (event) => {
                 event.stopPropagation();
 
-                const confirmDelete = confirm(
-                    "Are you sure you want to delete this conversation?"
+                deleteConversation(
+                    conversation.conversation_id
                 );
-
-                if (!confirmDelete) return;
-
-                try {
-                    const deleteResponse = await fetch(
-                        `http://127.0.0.1:8000/conversations/${conversation.conversation_id}`,
-                        {
-                            method: "DELETE"
-                        }
-                    );
-
-                    if (!deleteResponse.ok) {
-                        throw new Error("Delete failed");
-                    }
-
-                    // Clear chat if the deleted conversation is open
-                    if (conversationId === conversation.conversation_id) {
-                        conversationId = null;
-                        chatBox.innerHTML = "";
-
-                        displayMessage(
-                            "Hello! I'm your AI assistant. How can I help you?",
-                            "bot"
-                        );
-                    }
-
-                    await loadChatHistory();
-
-                } catch (error) {
-                    console.error(error);
-                    alert("Could not delete conversation.");
-                }
             });
 
-            item.appendChild(title);
-            item.appendChild(renameBtn);
-            item.appendChild(deleteBtn);
+            historyItem.appendChild(title);
+            historyItem.appendChild(renameBtn);
+            historyItem.appendChild(deleteBtn);
 
-            chatHistory.appendChild(item);
+            chatHistory.appendChild(historyItem);
         });
 
     } catch (error) {
@@ -185,61 +131,154 @@ async function loadChatHistory() {
     }
 }
 
-// Open an old conversation
+
+// Open an existing conversation
 async function openConversation(id) {
     try {
         const response = await fetch(
-            `http://127.0.0.1:8000/conversations/${id}`
+            `${API_URL}/conversations/${encodeURIComponent(id)}`
         );
 
         if (!response.ok) {
-            throw new Error("Could not open conversation");
+            throw new Error("Could not open conversation.");
         }
 
         const data = await response.json();
 
         conversationId = data.conversation_id;
+
         chatBox.innerHTML = "";
 
-        data.messages.forEach(message => {
+        data.messages.forEach((message) => {
             const sender =
                 message.role === "user" ? "user" : "bot";
 
             displayMessage(message.content, sender);
         });
 
-    } catch (error) {
-        console.error(error);
+        userInput.focus();
 
-        displayMessage(
-            "Could not load this conversation.",
-            "bot"
-        );
+    } catch (error) {
+        console.error("Open conversation error:", error);
+        alert("Unable to open this conversation.");
     }
 }
 
-// Send message
+
+// Rename a conversation
+async function renameConversation(id, oldTitle) {
+    const newTitle = prompt(
+        "Enter the new conversation name:",
+        oldTitle || ""
+    );
+
+    if (newTitle === null) {
+        return;
+    }
+
+    if (!newTitle.trim()) {
+        alert("Conversation name cannot be empty.");
+        return;
+    }
+
+    try {
+        const response = await fetch(
+            `${API_URL}/conversations/${encodeURIComponent(id)}`,
+            {
+                method: "PUT",
+
+                headers: {
+                    "Content-Type": "application/json"
+                },
+
+                body: JSON.stringify({
+                    title: newTitle.trim()
+                })
+            }
+        );
+
+        if (!response.ok) {
+            throw new Error("Could not rename conversation.");
+        }
+
+        await loadChatHistory();
+
+        alert("Conversation renamed successfully!");
+
+    } catch (error) {
+        console.error("Rename error:", error);
+        alert("Unable to rename conversation.");
+    }
+}
+
+
+// Delete a conversation
+async function deleteConversation(id) {
+    const confirmed = confirm(
+        "Are you sure you want to delete this conversation?"
+    );
+
+    if (!confirmed) {
+        return;
+    }
+
+    try {
+        const response = await fetch(
+            `${API_URL}/conversations/${encodeURIComponent(id)}`,
+            {
+                method: "DELETE"
+            }
+        );
+
+        if (!response.ok) {
+            throw new Error("Could not delete conversation.");
+        }
+
+        // Clear chat if the deleted conversation is open
+        if (conversationId === id) {
+            startNewChat();
+        }
+
+        await loadChatHistory();
+
+        alert("Conversation deleted successfully!");
+
+    } catch (error) {
+        console.error("Delete error:", error);
+        alert("Unable to delete conversation.");
+    }
+}
+
+
+// Send message to Gemini
 async function sendMessage() {
     const message = userInput.value.trim();
 
-    if (message === "" || sendBtn.disabled) return;
+    if (!message || isSending) {
+        return;
+    }
 
+    isSending = true;
+    sendBtn.disabled = true;
+
+    // Display user message
     displayMessage(message, "user");
+
     userInput.value = "";
 
-    sendBtn.disabled = true;
-    sendBtn.textContent = "Sending...";
-
+    // Show typing indicator
     showTypingIndicator();
 
     try {
         const response = await fetch(
-            "http://127.0.0.1:8000/chat",
+            `${API_URL}/chat`,
             {
                 method: "POST",
+
                 headers: {
                     "Content-Type": "application/json"
                 },
+
                 body: JSON.stringify({
                     message: message,
                     conversation_id: conversationId
@@ -247,49 +286,60 @@ async function sendMessage() {
             }
         );
 
-        if (!response.ok) {
-            throw new Error("Backend request failed");
-        }
-
         const data = await response.json();
 
-        removeTypingIndicator();
+        if (!response.ok) {
+            throw new Error(
+                data.detail || "Something went wrong."
+            );
+        }
 
+        // Save conversation ID
         conversationId = data.conversation_id;
 
+        // Remove typing indicator
+        removeTypingIndicator();
+
+        // Display AI response
         displayMessage(data.reply, "bot");
 
+        // Refresh sidebar history
         await loadChatHistory();
 
     } catch (error) {
-        console.error(error);
+        console.error("Chat error:", error);
 
         removeTypingIndicator();
 
         displayMessage(
-            "Sorry, something went wrong. Please check the backend.",
+            "Sorry, something went wrong. Please try again. " +
+            error.message,
             "bot"
         );
 
     } finally {
-        removeTypingIndicator();
-
+        isSending = false;
         sendBtn.disabled = false;
-        sendBtn.textContent = "Send";
         userInput.focus();
     }
 }
 
-// Event listeners
+
+// Button events
 sendBtn.addEventListener("click", sendMessage);
 
-userInput.addEventListener("keydown", function(event) {
+newChatBtn.addEventListener("click", startNewChat);
+
+
+// Send message using Enter key
+userInput.addEventListener("keydown", (event) => {
     if (event.key === "Enter") {
         sendMessage();
     }
 });
 
-newChatBtn.addEventListener("click", startNewChat);
 
-// Load history on startup
-loadChatHistory();
+// Load chat history when page opens
+document.addEventListener("DOMContentLoaded", () => {
+    loadChatHistory();
+});
