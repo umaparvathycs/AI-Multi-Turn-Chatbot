@@ -1,7 +1,11 @@
 # AI Multi-Turn Conversational Chatbot
 
 An AI-powered chatbot that supports natural, multi-turn conversations using Google Gemini. It stores conversation history, allowing users to revisit, rename, and delete previous chats.
+## 🚀 Live Demo
 
+Click below to try the AI Multi-Turn Conversational Chatbot:
+
+👉 [**Open AI Multi-Turn Chatbot**](https://ai-multi-turn-chatbot-frontend.onrender.com/)
 ## Features
 
 - AI-powered responses using Google Gemini
