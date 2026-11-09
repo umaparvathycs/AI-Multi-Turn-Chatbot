@@ -2,14 +2,20 @@
 import os
 from dotenv import load_dotenv
 
-# Load environment variables from .env
+# Load local .env file (if available)
 load_dotenv()
 
-# Get Gemini API key
-GEMINI_API_KEY = os.getenv("GEMINI_API_KEY")
+# Read environment variables
+GEMINI_API_KEY = os.environ.get("GEMINI_API_KEY")
+GEMINI_MODEL = os.environ.get(
+    "GEMINI_MODEL",
+    "gemini-3.5-flash-lite"
+)
 
-# Get Gemini model
-GEMINI_MODEL = os.getenv("GEMINI_MODEL", "gemini-2.5-flash")
-
-if not GEMINI_API_KEY:
-    raise ValueError("GEMINI_API_KEY is missing. Check your .env file.")
+# Validate API key
+if not GEMINI_API_KEY or not GEMINI_API_KEY.strip():
+    raise ValueError(
+        "GEMINI_API_KEY is missing. "
+        "Please configure it in Render Environment Variables "
+        "or your local .env file."
+    )
